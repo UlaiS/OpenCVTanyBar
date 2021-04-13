@@ -1,5 +1,12 @@
 package org.opencv.android;
 
+import java.util.List;
+
+import org.opencv.BuildConfig;
+import org.opencv.R;
+import org.opencv.core.Mat;
+import org.opencv.core.Size;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -12,13 +19,6 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-
-import org.opencv.BuildConfig;
-import org.opencv.R;
-import org.opencv.core.Mat;
-import org.opencv.core.Size;
-
-import java.util.List;
 
 /**
  * This is a basic class, implementing the interaction with Camera and OpenCV library.
@@ -67,6 +67,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
 
     public CameraBridgeViewBase(Context context, AttributeSet attrs) {
         super(context, attrs);
+
         int count = attrs.getAttributeCount();
         Log.d(TAG, "Attr count: " + Integer.valueOf(count));
 
@@ -314,7 +315,8 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     private void checkCurrentState() {
         Log.d(TAG, "call checkCurrentState");
         int targetState;
-        if (mEnabled && mSurfaceExist && getVisibility() == VISIBLE) {
+
+        if (mEnabled && mCameraPermissionGranted && mSurfaceExist && getVisibility() == VISIBLE) {
             targetState = STARTED;
         } else {
             targetState = STOPPED;
@@ -425,7 +427,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
             if (canvas != null) {
                 canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
                 if (BuildConfig.DEBUG)
-                    //Log.d(TAG, "mStretch value: " + mScale);
+                    Log.d(TAG, "mStretch value: " + mScale);
 
                 if (mScale != 0) {
                     canvas.drawBitmap(mCacheBitmap, new Rect(0,0,mCacheBitmap.getWidth(), mCacheBitmap.getHeight()),
@@ -468,9 +470,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     // NOTE: On Android 4.1.x the function must be called before SurfaceTexture constructor!
     protected void AllocateCache()
     {
-        int portraitWidth=mFrameHeight;
-        int portraitHeight=mFrameWidth;
-        mCacheBitmap = Bitmap.createBitmap(portraitWidth, portraitHeight, Bitmap.Config.ARGB_8888);
+        mCacheBitmap = Bitmap.createBitmap(mFrameWidth, mFrameHeight, Bitmap.Config.ARGB_8888);
     }
 
     public interface ListItemAccessor {
@@ -491,10 +491,8 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         int calcWidth = 0;
         int calcHeight = 0;
 
-        //int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceWidth)? mMaxWidth : surfaceWidth;
-        //int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceHeight)? mMaxHeight : surfaceHeight;
-        int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceHeight)? mMaxWidth : surfaceHeight;
-        int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceWidth)? mMaxHeight : surfaceWidth;
+        int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceWidth)? mMaxWidth : surfaceWidth;
+        int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceHeight)? mMaxHeight : surfaceHeight;
 
         for (Object size : supportedSizes) {
             int width = accessor.getWidth(size);

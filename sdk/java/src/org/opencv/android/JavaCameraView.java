@@ -1,5 +1,7 @@
 package org.opencv.android;
 
+import java.util.List;
+
 import android.content.Context;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
@@ -11,14 +13,10 @@ import android.util.Log;
 import android.view.ViewGroup.LayoutParams;
 
 import org.opencv.BuildConfig;
-import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
-
-import java.util.List;
-
 
 /**
  * This class is an implementation of the Bridge View between OpenCV and Java Camera.
@@ -144,7 +142,7 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
                 Log.d(TAG, "getSupportedPreviewSizes()");
                 List<android.hardware.Camera.Size> sizes = params.getSupportedPreviewSizes();
 
-                 if (sizes != null) {
+                if (sizes != null) {
                     /* Select the size that fits surface considering maximum size allowed */
                     Size frameSize = calculateCameraFrameSize(sizes, new JavaCameraSizeAccessor(), width, height);
 
@@ -170,21 +168,10 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
                         params.setRecordingHint(true);
 
                     List<String> FocusModes = params.getSupportedFocusModes();
-                    if (FocusModes != null && FocusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO)) {
+                    if (FocusModes != null && FocusModes.contains(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO))
+                    {
                         params.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO);
                     }
-
-                     final int[] previewFpsRange = new int[2];
-                     params.getPreviewFpsRange(previewFpsRange);
-                     if (previewFpsRange[0] == previewFpsRange[1]) {
-                         final List<int[]> supportedFpsRanges = params.getSupportedPreviewFpsRange();
-                         for (int[] range : supportedFpsRanges) {
-                             if (range[0] != range[1]) {
-                                 params.setPreviewFpsRange(range[0], range[1]);
-                                 break;
-                             }
-                         }
-                     }
 
                     mCamera.setParameters(params);
                     params = mCamera.getParameters();
@@ -193,8 +180,7 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
                     mFrameHeight = params.getPreviewSize().height;
 
                     if ((getLayoutParams().width == LayoutParams.MATCH_PARENT) && (getLayoutParams().height == LayoutParams.MATCH_PARENT))
-                        //mScale = Math.min(((float)height)/mFrameHeight, ((float)width)/mFrameWidth);
-                        mScale = Math.min(((float)width)/mFrameHeight, ((float)height)/mFrameWidth);
+                        mScale = Math.min(((float)height)/mFrameHeight, ((float)width)/mFrameWidth);
                     else
                         mScale = 0;
 
@@ -208,6 +194,7 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
 
                     mCamera.addCallbackBuffer(mBuffer);
                     mCamera.setPreviewCallbackWithBuffer(this);
+
                     mFrameChain = new Mat[2];
                     mFrameChain[0] = new Mat(mFrameHeight + (mFrameHeight/2), mFrameWidth, CvType.CV_8UC1);
                     mFrameChain[1] = new Mat(mFrameHeight + (mFrameHeight/2), mFrameWidth, CvType.CV_8UC1);
@@ -222,7 +209,7 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
                         mSurfaceTexture = new SurfaceTexture(MAGIC_TEXTURE_ID);
                         mCamera.setPreviewTexture(mSurfaceTexture);
                     } else
-                        mCamera.setPreviewDisplay(null);
+                       mCamera.setPreviewDisplay(null);
 
                     /* Finally we are ready to start the preview */
                     Log.d(TAG, "startPreview");
@@ -313,7 +300,7 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
     @Override
     public void onPreviewFrame(byte[] frame, Camera arg1) {
         if (BuildConfig.DEBUG)
-            //Log.d(TAG, "Preview Frame received. Frame size: " + frame.length);
+            Log.d(TAG, "Preview Frame received. Frame size: " + frame.length);
         synchronized (this) {
             mFrameChain[mChainIdx].put(0, 0, frame);
             mCameraFrameReady = true;
@@ -323,12 +310,10 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
             mCamera.addCallbackBuffer(mBuffer);
     }
 
-    public class JavaCameraFrame implements CvCameraViewFrame {
+    private class JavaCameraFrame implements CvCameraViewFrame {
         @Override
         public Mat gray() {
-            Core.rotate(mYuvFrameData.submat(0, mHeight, 0, mWidth),
-                    portrait_gray,Core.ROTATE_90_CLOCKWISE);
-            return portrait_gray;
+            return mYuvFrameData.submat(0, mHeight, 0, mWidth);
         }
 
         @Override
@@ -340,22 +325,13 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
             else
                 throw new IllegalArgumentException("Preview Format can be NV21 or YV12");
 
-            //#Modified step3.2
-            Core.rotate(mRgba,
-                    portrait_rgba,Core.ROTATE_90_CLOCKWISE);
-
-            return portrait_rgba;
+            return mRgba;
         }
 
-        JavaCameraFrame(Mat Yuv420sp, int width, int height) {
+        public JavaCameraFrame(Mat Yuv420sp, int width, int height) {
             super();
             mWidth = width;
             mHeight = height;
-            //#Modified
-            portrait_mHeight=mWidth;
-            portrait_mWidth=mHeight;
-            portrait_gray=new Mat(portrait_mHeight,portrait_mWidth,CvType.CV_8UC1);
-            portrait_rgba=new Mat(portrait_mHeight,portrait_mWidth,CvType.CV_8UC4);
             mYuvFrameData = Yuv420sp;
             mRgba = new Mat();
         }
@@ -368,11 +344,6 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
         private Mat mRgba;
         private int mWidth;
         private int mHeight;
-        //#Modified
-        private int portrait_mHeight;
-        private int portrait_mWidth;
-        private Mat portrait_gray;
-        private Mat portrait_rgba;
     };
 
     private class CameraWorker implements Runnable {
