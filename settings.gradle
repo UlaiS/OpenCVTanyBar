@@ -1,5 +1,5 @@
-include ':barcode'
-include ':zbar'
+//include ':barcode'
+//include ':zbar'
 rootProject.name = 'opencv_samples'
 
 include ':sdk'
