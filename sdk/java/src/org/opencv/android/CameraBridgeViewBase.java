@@ -30,7 +30,7 @@ import android.view.SurfaceView;
 public abstract class CameraBridgeViewBase extends SurfaceView implements SurfaceHolder.Callback {
 
     private static final String TAG = "CameraBridge";
-    protected static final int MAX_UNSPECIFIED = -1;
+    private static final int MAX_UNSPECIFIED = -1;
     private static final int STOPPED = 0;
     private static final int STARTED = 1;
 
@@ -151,8 +151,8 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         }
 
         public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-             Mat result = null;
-             switch (mPreviewFormat) {
+            Mat result = null;
+            switch (mPreviewFormat) {
                 case RGBA:
                     result = mOldStyleListener.onCameraFrame(inputFrame.rgba());
                     break;
@@ -191,6 +191,31 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         public Mat gray();
     };
 
+    /*
+    重载SurfaceHolder.Callback的方法
+     */
+     /*
+     Access to the underlying surface is provided via the SurfaceHolder interface,
+     which can be retrieved by calling getHolder().
+     The Surface will be created for you while the SurfaceView's window is visible;
+     you should implement SurfaceHolder.Callback.surfaceCreated(SurfaceHolder)
+     and SurfaceHolder.Callback.surfaceDestroyed(SurfaceHolder) to discover when the
+     Surface is created and destroyed as the window is shown and hidden.
+     One of the purposes of this class is to provide a surface in which a secondary
+     thread can render into the screen. If you are going to use it this way,
+     you need to be aware of some threading semantics:
+     All SurfaceView and SurfaceHolder.Callback methods will be called from
+     the thread running the SurfaceView's window (typically the main thread of the application). They thus need to correctly synchronize with any state that is also touched by the drawing thread.
+     You must ensure that the drawing thread only touches the underlying Surface
+     while it is valid -- between SurfaceHolder.Callback.surfaceCreated()
+     and SurfaceHolder.Callback.surfaceDestroyed().
+      */
+     /*
+     This is called immediately after any structural changes (format or size)
+     have been made to the surface. You should at this point update the imagery
+     in the surface. This method is always called at least once,
+     after surfaceCreated(SurfaceHolder).
+      */
     public void surfaceChanged(SurfaceHolder arg0, int arg1, int arg2, int arg3) {
         Log.d(TAG, "call surfaceChanged event");
         synchronized(mSyncObject) {
@@ -209,17 +234,30 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         }
     }
 
+    /*
+    This is called immediately after the surface is first created.
+    Implementations of this should start up whatever rendering code they desire.
+    Note that only one thread can ever draw into a Surface,
+    so you should not draw into the Surface here if your normal rendering
+    will be in another thread.
+     */
     public void surfaceCreated(SurfaceHolder holder) {
         /* Do nothing. Wait until surfaceChanged delivered */
     }
 
+    /*
+    This is called immediately before a surface is being destroyed.
+    After returning from this call, you should no longer try to access this surface.
+    If you have a rendering thread that directly accesses the surface,
+    you must ensure that thread is no longer touching the Surface before returning
+    from this function.
+     */
     public void surfaceDestroyed(SurfaceHolder holder) {
         synchronized(mSyncObject) {
             mSurfaceExist = false;
             checkCurrentState();
         }
     }
-
 
     /**
      * This method is provided for clients, so they can signal camera permission has been granted.
@@ -268,7 +306,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     }
 
     public void disableFpsMeter() {
-            mFpsMeter = null;
+        mFpsMeter = null;
     }
 
     /**
@@ -315,13 +353,17 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     private void checkCurrentState() {
         Log.d(TAG, "call checkCurrentState");
         int targetState;
-
-        if (mEnabled && mCameraPermissionGranted && mSurfaceExist && getVisibility() == VISIBLE) {
+        //enableView()将设置mEnabled为true,surfaceChanged()将设置mSurfaceExist
+        //getVisibility() == VISIBLE似乎总是成立的
+        //当surface准备好了且client设置enableView()时设置targetState为STARTED
+        if (mEnabled && mSurfaceExist && getVisibility() == VISIBLE) {
             targetState = STARTED;
         } else {
             targetState = STOPPED;
         }
 
+        //mState初始值是STOPPED
+        //若目标状态与当前状态不同则退出当前状态进入目标状态
         if (targetState != mState) {
             /* The state change detected. Need to exit the current state and enter target state */
             processExitState(mState);
@@ -333,30 +375,35 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     private void processEnterState(int state) {
         Log.d(TAG, "call processEnterState: " + state);
         switch(state) {
-        case STARTED:
-            onEnterStartedState();
-            if (mListener != null) {
-                mListener.onCameraViewStarted(mFrameWidth, mFrameHeight);
-            }
-            break;
-        case STOPPED:
-            onEnterStoppedState();
-            if (mListener != null) {
-                mListener.onCameraViewStopped();
-            }
-            break;
+            case STARTED:
+                //真正启动相机的地方
+                onEnterStartedState();
+                if (mListener != null) {
+                    //进入STARTED状态后若CameraBridgeViewBase类的成员CvCameraViewListener2 mListener
+                    //不为null则调用其onCameraViewStarted方法,通知mListener相机启动了
+                    mListener.onCameraViewStarted(mFrameWidth, mFrameHeight);
+                }
+                break;
+            case STOPPED:
+                onEnterStoppedState();
+                if (mListener != null) {
+                    //进入STOPPED状态后若CameraBridgeViewBase类的成员CvCameraViewListener2 mListener
+                    //不为null则调用其onCameraViewStopped方法,通知mListener相机停止了
+                    mListener.onCameraViewStopped();
+                }
+                break;
         };
     }
 
     private void processExitState(int state) {
         Log.d(TAG, "call processExitState: " + state);
         switch(state) {
-        case STARTED:
-            onExitStartedState();
-            break;
-        case STOPPED:
-            onExitStoppedState();
-            break;
+            case STARTED:
+                onExitStartedState();
+                break;
+            case STOPPED:
+                onExitStoppedState();
+                break;
         };
     }
 
@@ -373,6 +420,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     private void onEnterStartedState() {
         Log.d(TAG, "call onEnterStartedState");
         /* Connect camera */
+        //connectCamera的参数是CameraBridgeViewBase的width,height
         if (!connectCamera(getWidth(), getHeight())) {
             AlertDialog ad = new AlertDialog.Builder(getContext()).create();
             ad.setCancelable(false); // This blocks the 'BACK' button
@@ -395,6 +443,13 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         }
     }
 
+     /*
+         onPreviewFrame在UI线程被调用,它存好数据后通知另一个线程处理
+         另一个线程就调用这个方法处理数据
+         onPreviewFrame相当于生产者,另一个线程相当于消费者
+         当使用JavaCameraView类时frame是JavaCameraFrame类型
+         其通过OpenCV实现了接口
+      */
     /**
      * This method shall be called by the subclasses when they have valid
      * object and want it to be delivered to external client (via callback) and
@@ -405,12 +460,26 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         Mat modified;
 
         if (mListener != null) {
+            //CvCameraViewListener2 mListener是client指定的
+            //这里调用客户重载的接口方法且接收返回值
+            //这里都是在数据处理线程里执行的
             modified = mListener.onCameraFrame(frame);
         } else {
+            //若client没指定CvCameraViewListener2 mListener即client不准备处理preview数据
+            //则modified设置为
+            //onPreviewFrame传回的数据转换成的rgba Mat
             modified = frame.rgba();
         }
 
+        //Log Mat的大小和Bitmap的大小
+        Log.d("FunnyAR","mScale: "+mScale+" modified.rows: "+modified.rows()
+                +" modified.cols: "+modified.cols()+" mCacheBitmap.getWidth(): "+
+                mCacheBitmap.getWidth()+" mCacheBitmap.getHeight() "+
+                mCacheBitmap.getHeight());
+
+        //标志modified转Bitmap是否成功
         boolean bmpValid = true;
+        //若确实有modified则将其转为Bitmap
         if (modified != null) {
             try {
                 Utils.matToBitmap(modified, mCacheBitmap);
@@ -421,7 +490,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
                 bmpValid = false;
             }
         }
-
+        //转换成功通过画布画到surface里
         if (bmpValid && mCacheBitmap != null) {
             Canvas canvas = getHolder().lockCanvas();
             if (canvas != null) {
@@ -431,16 +500,16 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
 
                 if (mScale != 0) {
                     canvas.drawBitmap(mCacheBitmap, new Rect(0,0,mCacheBitmap.getWidth(), mCacheBitmap.getHeight()),
-                         new Rect((int)((canvas.getWidth() - mScale*mCacheBitmap.getWidth()) / 2),
-                         (int)((canvas.getHeight() - mScale*mCacheBitmap.getHeight()) / 2),
-                         (int)((canvas.getWidth() - mScale*mCacheBitmap.getWidth()) / 2 + mScale*mCacheBitmap.getWidth()),
-                         (int)((canvas.getHeight() - mScale*mCacheBitmap.getHeight()) / 2 + mScale*mCacheBitmap.getHeight())), null);
+                            new Rect((int)((canvas.getWidth() - mScale*mCacheBitmap.getWidth()) / 2),
+                                    (int)((canvas.getHeight() - mScale*mCacheBitmap.getHeight()) / 2),
+                                    (int)((canvas.getWidth() - mScale*mCacheBitmap.getWidth()) / 2 + mScale*mCacheBitmap.getWidth()),
+                                    (int)((canvas.getHeight() - mScale*mCacheBitmap.getHeight()) / 2 + mScale*mCacheBitmap.getHeight())), null);
                 } else {
-                     canvas.drawBitmap(mCacheBitmap, new Rect(0,0,mCacheBitmap.getWidth(), mCacheBitmap.getHeight()),
-                         new Rect((canvas.getWidth() - mCacheBitmap.getWidth()) / 2,
-                         (canvas.getHeight() - mCacheBitmap.getHeight()) / 2,
-                         (canvas.getWidth() - mCacheBitmap.getWidth()) / 2 + mCacheBitmap.getWidth(),
-                         (canvas.getHeight() - mCacheBitmap.getHeight()) / 2 + mCacheBitmap.getHeight()), null);
+                    canvas.drawBitmap(mCacheBitmap, new Rect(0,0,mCacheBitmap.getWidth(), mCacheBitmap.getHeight()),
+                            new Rect((canvas.getWidth() - mCacheBitmap.getWidth()) / 2,
+                                    (canvas.getHeight() - mCacheBitmap.getHeight()) / 2,
+                                    (canvas.getWidth() - mCacheBitmap.getWidth()) / 2 + mCacheBitmap.getWidth(),
+                                    (canvas.getHeight() - mCacheBitmap.getHeight()) / 2 + mCacheBitmap.getHeight()), null);
                 }
 
                 if (mFpsMeter != null) {
@@ -459,6 +528,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
      * @param width - the width of this SurfaceView
      * @param height - the height of this SurfaceView
      */
+    //具体启动相机的过程由子类实现
     protected abstract boolean connectCamera(int width, int height);
 
     /**
@@ -470,7 +540,13 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     // NOTE: On Android 4.1.x the function must be called before SurfaceTexture constructor!
     protected void AllocateCache()
     {
-        mCacheBitmap = Bitmap.createBitmap(mFrameWidth, mFrameHeight, Bitmap.Config.ARGB_8888);
+        //mCacheBitmap = Bitmap.createBitmap(mFrameWidth, mFrameHeight, Bitmap.Config.ARGB_8888);
+        //#Modified portrait step2
+        //为了方向正确mCacheBitmap存储的时相机frame旋转90度之后的数据
+        //旋转90度后mFrameWidth,mFrameHeight互换
+        int portraitWidth=mFrameHeight;
+        int portraitHeight=mFrameWidth;
+        mCacheBitmap = Bitmap.createBitmap(portraitWidth, portraitHeight, Bitmap.Config.ARGB_8888);
     }
 
     public interface ListItemAccessor {
@@ -488,30 +564,31 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
      * @return optimal frame size
      */
     protected Size calculateCameraFrameSize(List<?> supportedSizes, ListItemAccessor accessor, int surfaceWidth, int surfaceHeight) {
+        //选择一个相机frame大小
         int calcWidth = 0;
         int calcHeight = 0;
 
-        int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceWidth)? mMaxWidth : surfaceWidth;
-        int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceHeight)? mMaxHeight : surfaceHeight;
+        //允许的最大width和height
+        //#Modified step4
+        //相机Frame的mMaxWidth应该与surface的surfaceHeight比
+        //相机Frame的mMaxHeight应该与surface的surfaceWidth比
+        //int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceWidth)? mMaxWidth : surfaceWidth;
+        //int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceHeight)? mMaxHeight : surfaceHeight;
+        int maxAllowedWidth = (mMaxWidth != MAX_UNSPECIFIED && mMaxWidth < surfaceHeight)? mMaxWidth : surfaceHeight;
+        int maxAllowedHeight = (mMaxHeight != MAX_UNSPECIFIED && mMaxHeight < surfaceWidth)? mMaxHeight : surfaceWidth;
 
         for (Object size : supportedSizes) {
             int width = accessor.getWidth(size);
             int height = accessor.getHeight(size);
-            Log.d(TAG, "trying size: " + width + "x" + height);
 
+            //在允许的范围内选择最大的size
+            //client是可通过设置小的mMaxWidth,mMaxHeight来选择低分辨率frame的
             if (width <= maxAllowedWidth && height <= maxAllowedHeight) {
                 if (width >= calcWidth && height >= calcHeight) {
                     calcWidth = (int) width;
                     calcHeight = (int) height;
                 }
             }
-        }
-        if ((calcWidth == 0 || calcHeight == 0) && supportedSizes.size() > 0)
-        {
-            Log.i(TAG, "fallback to the first frame size");
-            Object size = supportedSizes.get(0);
-            calcWidth = accessor.getWidth(size);
-            calcHeight = accessor.getHeight(size);
         }
 
         return new Size(calcWidth, calcHeight);
